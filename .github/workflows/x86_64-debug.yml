@@ -1,0 +1,75 @@
+name: Build x86_64 debug APK (ChromeOS ARCVM)
+
+# Native x86_64 build so the Go sing-box engine runs without ARM (Houdini)
+# translation on x86_64 ChromeOS Android subsystems, where the arm64 libbox
+# segfaults. Debug-signed; for personal sideloading only.
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: x86_64-debug
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install NDKs
+        run: sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"
+
+      - name: Cache libbox.aar
+        id: libbox
+        uses: actions/cache@v4
+        with:
+          path: android/app/libs/libbox.aar
+          key: libbox-x86-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'scripts/graft-engine-binding.sh', 'scripts/patch-singbox-source.sh', 'scripts/singbox-patches/**', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
+
+      - name: Install gomobile
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+
+      - name: Build libbox.aar
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
+          bash android/build-libbox-release.sh
+
+      - name: Build x86_64 debug APK
+        working-directory: android
+        run: ./gradlew :app:assembleDebug -PreactNativeArchitectures=x86_64 -PopenrungX86Only --no-daemon --stacktrace
+
+      - name: Show APK ABIs
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep -oE "lib/[^/]+/" | sort -u
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openrung-x86_64-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7

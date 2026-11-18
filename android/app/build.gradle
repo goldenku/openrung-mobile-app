@@ -170,6 +170,14 @@ androidComponents {
         variant.packaging.jniLibs.excludes.add("**/x86/**")
         variant.packaging.jniLibs.excludes.add("**/x86_64/**")
     }
+    // x86_64-only debug build for ChromeOS ARCVM (native, no ARM translation).
+    onVariants(selector().withBuildType("debug")) { variant ->
+        if (project.hasProperty('openrungX86Only')) {
+            variant.packaging.jniLibs.excludes.add("**/armeabi-v7a/**")
+            variant.packaging.jniLibs.excludes.add("**/arm64-v8a/**")
+            variant.packaging.jniLibs.excludes.add("**/x86/**")
+        }
+    }
 }
 
 // Refuse to *assemble* a release without a real signing key rather than silently
