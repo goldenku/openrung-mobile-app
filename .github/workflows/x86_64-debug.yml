@@ -23,6 +23,15 @@ jobs:
 
       - run: npm ci
 
+      # Gradle 9.3.1's daemon-JVM settings validation resolves the RN included
+      # build's foojay-resolver-convention plugin against default repos only and
+      # fails. setup-java already provides JDK 17, so drop the auto-provisioning
+      # plugin (local toolchain detection still satisfies any 17 toolchain).
+      - name: Drop foojay toolchain resolver (JDK provided)
+        run: |
+          grep -rl "foojay-resolver-convention" node_modules/@react-native/gradle-plugin \
+            | xargs -r sed -i '/foojay-resolver-convention/d'
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
