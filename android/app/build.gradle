@@ -11,6 +11,10 @@ if (project.hasProperty('openrungEngineContractAar')) {
 
 react {
     autolinkLibrariesWithApp()
+    // Sideloaded x86_64 build has no Metro dev server: bundle JS into debug too.
+    if (project.hasProperty('openrungX86Only')) {
+        debuggableVariants = []
+    }
 }
 
 /**
